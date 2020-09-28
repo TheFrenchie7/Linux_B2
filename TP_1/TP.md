@@ -225,9 +225,11 @@ rtt min/avg/max/mdev = 0.337/0.398/0.460/0.064 ms
 
 * **les machines doivent avoir un nom**
 ```
-[user@node1 ~]$ echo 'node2.tp1.b2' | sudo tee /etc/hostname
+[user@node1 ~]$ echo 'node1.tp1.b2' | sudo tee /etc/hostname
 [sudo] password for user:
-node2.tp1.b2
+node1.tp1.b2
+[user@node1 ~]$ sudo vim /etc/hostname
+node1.tp1.b2
 ```
 
 * **les machines doivent pouvoir se joindre par leurs noms respectifs**
