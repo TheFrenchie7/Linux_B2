@@ -427,9 +427,49 @@ Pour le **"HTTPS"**
 [user@node2 ~]$
 ```
 ## 2.Script de sauvegarde.
+* **Ecrire un script**
+```
+#!/bin/bash
 
+backupdate=$(date +%Y-%m-%d-%H-%M)
 
+dirbackup=backup
 
+tar -cf $dirbackup/site1-$backupdate.tar.gzip /etc /srv /site1
+
+find $log -type f -mtime +1 -exec /etc/script/backup -f {} \;
+```
+```
+[backup@node1 srv]$ ls -al
+total 8
+dr-xrwx---.  4 usern backup   32 Sep 23 13:03 .
+dr-xr-xr-x. 17 root  root    224 Sep 24 11:59 ..
+dr-xrwx---.  3 usern backup 4096 Sep 24 11:55 site1
+dr-xrwx---.  3 usern backup 4096 Sep 24 11:55 site2
+[backup@node1 srv]$ cd /site1
+-bash: cd: /site1: No such file or directory
+[backup@node1 srv]$ cd site1
+[backup@node1 site1]$ ls -al
+total 24
+dr-xrwx---. 3 usern backup  4096 Sep 24 11:55 .
+dr-xrwx---. 4 usern backup    32 Sep 23 13:03 ..
+-r-xrwx---. 1 usern backup    17 Sep 24 11:55 index.html
+dr-xrwx---. 2 usern backup 16384 Sep 23 12:53 lost+found
+```
+
+* **Utiliser la "crontab" pour que le script s'exécute automatiquement toutes les heures.**
+```
+[backup@node1 ~]$ crontab -l
+0 * * * * ./tp1_backup.sh
+```
+* **Prouver que vous êtes capables de restaurer un des sites dans une version antérieure, et fournir une marche à suivre pour restaurer une sauvegarde donnée.**
 
 
 ## 3.Monitoring, alerting.
+
+* **Mettre en place l'outil Netdata en suivant les instructions officielles et s'assurer de son bon fonctionnement.**
+![](https://i.imgur.com/UPVECPl.png)
+
+
+* **Configurer Netdata pour qu'ils vous envoient des alertes dans un salon Discord dédié**
+![](https://i.imgur.com/dotpsXZ.png)
