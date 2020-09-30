@@ -267,3 +267,196 @@ node2.tp2.b2
 ```
 ## 4. Automation here we (slowly) come
 * **Créer un "vagrantfile" qui automatise le TP1**
+
+* HTTPS:
+```bash=
+[vagrant@node2 ~]$ curl -L https://node1.tp2.b2/site1
+<h1>hello1</h1>
+[vagrant@node2 ~]$ curl -L https://node1.tp2.b2/site2
+<h1>hello2</h1>
+[vagrant@node2 ~]$
+```
+* HTTP
+```bash=
+[vagrant@node2 ~]$ curl -L node1.tp2.b2/site1
+<h1>hello1</h1>
+[vagrant@node2 ~]$ curl -L node1.tp2.b2/site2
+<h1>hello2</h1>
+[vagrant@node2 ~]$
+```
+* ping vers **"node1"** avec l'adresse ip puis le nom d'hôte
+```bash=
+[vagrant@node2 ~]$ ping 192.168.1.11
+PING 192.168.1.11 (192.168.1.11) 56(84) bytes of data.
+64 bytes from 192.168.1.11: icmp_seq=1 ttl=64 time=0.438 ms
+64 bytes from 192.168.1.11: icmp_seq=2 ttl=64 time=0.419 ms
+
+--- 192.168.1.11 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1010ms
+rtt min/avg/max/mdev = 0.419/0.428/0.438/0.022 ms
+[vagrant@node2 ~]$ ping node1.tp2.b2
+PING node1.tp2.b2 (192.168.1.11) 56(84) bytes of data.
+64 bytes from node1.tp2.b2 (192.168.1.11): icmp_seq=1 ttl=64 time=0.467 ms
+64 bytes from node1.tp2.b2 (192.168.1.11): icmp_seq=2 ttl=64 time=0.453 ms
+
+--- node1.tp2.b2 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1024ms
+rtt min/avg/max/mdev = 0.453/0.460/0.467/0.007 ms
+[vagrant@node2 ~]$
+```
+* Vérification du second disk
+```bash=
+[vagrant@node2 ~]$ lsblk
+NAME   MAJ:MIN RM SIZE RO TYPE MOUNTPOINT
+sda      8:0    0  40G  0 disk
+└─sda1   8:1    0  40G  0 part /
+sdb      8:16   0   5G  0 disk
+[vagrant@node2 ~]$
+```
+* La config vagrant qui m'a permis de faire tout ça
+```bash=
+CONTROL_NODE_DISK1 = './tmp/large_disk1.vdi'
+CONTROL_NODE_DISK2 = './tmp/large_disk2.vdi'
+
+Vagrant.configure("2")do|config|
+  config.vm.box="b2-tp2-centos"
+
+  # Ajoutez cette ligne afin d'accélérer le démarrage de la VM (si une erreur 'vbguest' est levée, voir la note un peu plus bas)
+  config.vbguest.auto_update = false
+
+  # Désactive les updates auto qui peuvent ralentir le lancement de la machine
+  config.vm.box_check_update = false 
+
+  # La ligne suivante permet de désactiver le montage d'un dossier partagé (ne marche pas tout le temps directement suivant vos OS, versions d'OS, etc.)
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  config.vm.define "node1" do |node1|
+    node1.vm.network "public_network", ip:"192.168.1.11", hostname: true
+    node1.vm.network "private_network", type: "dhcp"
+    node1.vm.hostname = "node1.tp2.b2"
+    node1.vm.define "node1"
+    node1.vm.provision "shell", path: "script.sh"
+    node1.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--memory", "1024"]
+      unless File.exist?(CONTROL_NODE_DISK1)
+        vb.customize ['createhd', '--filename', CONTROL_NODE_DISK1, '--variant', 'Fixed', '--size', 5 * 1024]
+      end
+      vb.customize ['storageattach', :id,  '--storagectl', 'IDE', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', CONTROL_NODE_DISK1]
+    end
+  end
+
+  config.vm.define"node2" do |node2|
+    node2.vm.network "public_network", ip:"192.168.1.12", hostname: true
+    node2.vm.network "private_network", type: "dhcp"
+    node2.vm.hostname = "node2.tp2.b2"
+    node2.vm.provision "shell", path: "script2.sh"
+    node2.vm.define "node2"
+    node2.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--memory", "512"]
+      unless File.exist?(CONTROL_NODE_DISK2)
+        vb.customize ['createhd', '--filename', CONTROL_NODE_DISK2, '--variant', 'Fixed', '--size', 5 * 1024]
+      end
+      vb.customize ['storageattach', :id,  '--storagectl', 'IDE', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', CONTROL_NODE_DISK2]
+    end
+  end
+
+end
+```
+* Les deux scripts que j'ai utilisé en plus pour ceci
+```bash=
+#!/bin/bash
+
+systemctl start firewalld
+setenforce 0
+firewall-cmd --add-port=80/tcp --permanent
+firewall-cmd --add-port=443/tcp --permanent
+firewall-cmd --reload
+
+useradd admin
+echo 'admin' | passwd --stdin admin
+
+useradd usern
+echo 'usern' | passwd --stdin usern
+
+echo ' 192.168.1.12 node2.tp2.b2' | tee /etc/hosts
+
+mkdir /srv/site1
+mkdir /srv/site2
+touch index.html /srv/site1
+touch index.html /srv/site2
+
+echo '<h1>hello1</h1>' | tee /srv/site1/index.html
+echo '<h1>hello2</h1>' | tee /srv/site2/index.html
+chmod 510 /srv/site1
+chmod 510 /srv/site2
+chown usern:usern /srv/site1
+chown usern:usern /srv/site2
+
+echo '
+worker_processes 1;
+error_log nginx_error.log;
+pid /run/nginx.pid;
+user usern;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    server {
+        listen 80;
+        server_name node1.tp2.b2;
+        
+        location / {
+              return 301 /site1;
+        }
+
+        location /site1 {
+            alias /srv/site1;
+        }
+
+        location /site2 {
+            alias /srv/site2;
+        }
+    }
+    server {
+        listen 443 ssl;
+
+        server_name node1.tp2.b2;
+        ssl_certificate /etc/pki/tls/certs/server.crt;
+        ssl_certificate_key /etc/pki/tls/private/server.key;
+        
+        location / {
+              return 301 /site1;
+        }
+
+        location /site1 {
+            alias /srv/site1;
+        }
+
+        location /site2 {
+            alias /srv/site2;
+        }
+    }
+}' > /etc/nginx/nginx.conf
+openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -keyout server.key -out server.crt -subj "/CN=node1.tp2.b2"
+mv server.key /etc/pki/tls/private
+mv server.crt /etc/pki/tls/certs
+systemctl start nginx
+```
+```bash=
+#!/bin/bash
+
+systemctl start firewalld
+setenforce 0
+firewall-cmd --reload
+
+useradd admin
+echo 'admin' | passwd --stdin admin
+
+echo ' 192.168.1.11 node1.tp2.b2' | tee /etc/hosts
+
+echo -n | openssl s_client -connect node1.tp2.b2:443 \
+    | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > /etc/pki/ca-trust/source/anchors/server.cert
+update-ca-trust
+```
