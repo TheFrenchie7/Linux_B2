@@ -1,3 +1,6 @@
+CONTROL_NODE_DISK1 = './tmp/large_disk1.vdi'
+CONTROL_NODE_DISK2 = './tmp/large_disk2.vdi'
+
 Vagrant.configure("2")do|config|
   config.vm.box="b2-tp2-centos"
 
@@ -11,20 +14,32 @@ Vagrant.configure("2")do|config|
   config.vm.synced_folder ".", "/vagrant", disabled: true
 
   config.vm.define "node1" do |node1|
-    node1.vm.network "private_network", ip:"192.168.2.21"
+    node1.vm.network "public_network", ip:"192.168.1.11", hostname: true
+    node1.vm.network "private_network", type: "dhcp"
     node1.vm.hostname = "node1.tp2.b2"
     node1.vm.define "node1"
+    node1.vm.provision "shell", path: "script.sh"
     node1.vm.provider :virtualbox do |vb|
       vb.customize ["modifyvm", :id, "--memory", "1024"]
+      unless File.exist?(CONTROL_NODE_DISK1)
+        vb.customize ['createhd', '--filename', CONTROL_NODE_DISK1, '--variant', 'Fixed', '--size', 5 * 1024]
+      end
+      vb.customize ['storageattach', :id,  '--storagectl', 'IDE', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', CONTROL_NODE_DISK1]
     end
   end
 
   config.vm.define"node2" do |node2|
-    node2.vm.network "private_network", ip:"192.168.2.22"
+    node2.vm.network "public_network", ip:"192.168.1.12", hostname: true
+    node2.vm.network "private_network", type: "dhcp"
     node2.vm.hostname = "node2.tp2.b2"
+    node2.vm.provision "shell", path: "script2.sh"
     node2.vm.define "node2"
     node2.vm.provider :virtualbox do |vb|
       vb.customize ["modifyvm", :id, "--memory", "512"]
+      unless File.exist?(CONTROL_NODE_DISK2)
+        vb.customize ['createhd', '--filename', CONTROL_NODE_DISK2, '--variant', 'Fixed', '--size', 5 * 1024]
+      end
+      vb.customize ['storageattach', :id,  '--storagectl', 'IDE', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', CONTROL_NODE_DISK2]
     end
   end
 
