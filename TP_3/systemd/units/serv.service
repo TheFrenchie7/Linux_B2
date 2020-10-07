@@ -1,0 +1,16 @@
+[Unit]
+Description=lance le serveur web
+
+[Service]
+Type=simple
+RemainAfterExit=yes
+Environnement="PORT=8080"
+User=web
+group=web
+ExecStartPre=sudo /usr/bin/firewall-cmd --add-port=8080/tcp --permanent
+ExecStart=/usr/bin/python2 -m SimpleHTTPServer 8080
+ExecStartPre=sudo /usr/bin/firewall-cmd --remove-port=8080/tcp --permanent
+
+
+[Install]
+WantedBy=multi-user.target
